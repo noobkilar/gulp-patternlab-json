@@ -1,0 +1,46 @@
+{
+  "name": "gulp-patternlab-json",
+  "version": "0.1.0",
+  "description": "Patternlab compatibility for json data",
+  "author": "Samuel Cleroux-Bouthillier <samuel@scbfolio.com> (http://scbfolio.com)",
+  "contributors": [],
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/noobkilar/gulp-patternlab-json.git"
+  },
+  "bugs": {
+    "url": "https://github.com/noobkilar/gulp-patternlab-json/issues"
+  },
+  "homepage": "https://github.com/noobkilar/gulp-patternlab-json#readme",
+  "keywords": [
+    "gulp",
+    "json",
+    "atomic",
+    "design",
+    "pattern",
+    "patternlab"
+  ],
+  "dependencies": {
+    "deepmerge": "^1.0.2",
+    "fs": "0.0.1-security",
+    "gulp-util": "^3.0.7",
+    "js-beautify": "^1.6.4",
+    "path": "^0.12.7",
+    "through2": "^2.0.1"
+  },
+  "devDependencies": {
+    "chai": "^3.5.0",
+    "mocha": "^3.1.0"
+  },
+  "analyze": true,
+  "licenses": [
+    {
+      "type": "MIT",
+      "url": "https://github.com/noobkilar/gulp-patternlab-json/blob/master/LICENSE-MIT"
+    }
+  ]
+}
