@@ -1,6 +1,6 @@
 {
   "name": "gulp-patternlab-json",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Patternlab compatibility for json data",
   "author": "Samuel Cleroux-Bouthillier <samuel@scbfolio.com> (http://scbfolio.com)",
   "contributors": [],
