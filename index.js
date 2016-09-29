@@ -74,19 +74,11 @@ module.exports = function(opts) {
         }
     }
 
-    var objects              = {};
-    var objectsIndex         = 1;
-    var arrays               = {};
-    var arraysIndex          = 1;
-
     var findExtended         = /([^@]*)@extends?\(([^)]*)\)/g;
     var findArray            = /([^@]*)@array?\((.*)\)/g;
 
     var findHelperName       = /^([^(]*)/g;
     var findHelperParameters = /\((.*)\)/g;
-
-    var findHelperObject     = /({[^{}]*})/g;
-    var findHelperArray      = /(\[[^\[\]]*\])/g;
 
     function beginParsing(string) {
         var stringData = JSON.parse(string);
@@ -99,63 +91,67 @@ module.exports = function(opts) {
         var currentLevel;
         var templateText;
 
-        if (JSON.stringify(object).indexOf('{') == 0) {
-            currentLevel = {};
-            for (var key in object) {
-                var data = object[key];
+        if (typeof object === "object") {
+            if (JSON.stringify(object).indexOf('{') == 0) {
+                currentLevel = {};
+                for (var key in object) {
+                    var data = object[key];
 
-                if (key.match(findArray)) {
-                    var arrayLength = 0;
-                    key = key.replace(findArray, function(result, key, params) {
-                        params = createParams(params);
-                        arrayLength = Number(params[0]);
-                        templateText = JSON.stringify(JSON.parse(partialsData[params[1]]));
-                        return key;
-                    });
+                    if (key.match(findArray)) {
+                        var arrayLength = 0;
+                        key = key.replace(findArray, function(result, key, params) {
+                            params = createParams(params);
+                            arrayLength = Number(params[0]);
+                            templateText = JSON.stringify(JSON.parse(partialsData[params[1]]));
+                            return key;
+                        });
 
-                    var newData = [];
-                    for (var i = 0; i < arrayLength; i++) {newData.push(mergeData(templateText, data));}
-                    data = newData;
-                }
-
-                if (data !== "#") {
-                    if (JSON.stringify(data).indexOf('#') == 1) {
-                        data = executeHelper(data);
+                        var newData = [];
+                        for (var i = 0; i < arrayLength; i++) {newData.push(mergeData(templateText, data));}
+                        data = newData;
                     }
-                }
 
-                if (JSON.stringify(data).indexOf('{') == 0) {
-                    data = parseOneLevel(data);
-                }
+                    if (data !== "#") {
+                        if (JSON.stringify(data).indexOf('#') == 1) {
+                            data = executeHelper(data);
+                        }
+                    }
 
-                if (JSON.stringify(data).indexOf('[') == 0) {
-                    data = parseOneLevel(data);
-                }
-
-                if (key.match(findExtended)) {
-                    key = key.replace(findExtended, function(result, key, template) {
-                        templateText = JSON.stringify(JSON.parse(partialsData[template]));
-                        return key;
-                    });
+                    if (JSON.stringify(data).indexOf('{') == 0) {
+                        data = parseOneLevel(data);
+                    }
 
                     if (JSON.stringify(data).indexOf('[') == 0) {
-                        var newData = [];
-                        for (var i = 0; i < data.length; i++) {
-                            newData.push(mergeData(templateText, data[i]));
-                        }
-                        data = newData;
-                    } else {
-                        data = mergeData(templateText, data);
+                        data = parseOneLevel(data);
                     }
-                }
 
-                currentLevel[key] = data;
+                    if (key.match(findExtended)) {
+                        key = key.replace(findExtended, function(result, key, template) {
+                            templateText = JSON.stringify(JSON.parse(partialsData[template]));
+                            return key;
+                        });
+
+                        if (JSON.stringify(data).indexOf('[') == 0) {
+                            var newData = [];
+                            for (var i = 0; i < data.length; i++) {
+                                newData.push(mergeData(templateText, data[i]));
+                            }
+                            data = newData;
+                        } else {
+                            data = mergeData(templateText, data);
+                        }
+                    }
+
+                    currentLevel[key] = data;
+                }
+            } else if (JSON.stringify(object).indexOf('[') == 0) {
+                currentLevel = [];
+                for (var i = 0; i < object.length; i++) {
+                    currentLevel.push(JSON.parse(beginParsing(JSON.stringify(object[i]))));
+                }
             }
-        } else if (JSON.stringify(object).indexOf('[') == 0) {
-            currentLevel = [];
-            for (var i = 0; i < object.length; i++) {
-                currentLevel.push(JSON.parse(beginParsing(JSON.stringify(object[i]))));
-            }
+        } else {
+            currentLevel = object;
         }
 
         return currentLevel;
@@ -164,11 +160,15 @@ module.exports = function(opts) {
     function executeHelper(result) {
         var helperName   = result.match(findHelperName)[0].slice(1);
         var helperParams = result.match(findHelperParameters)[0].slice(1, -1);
-        var arrayParams  = createParams(helperParams);
 
         var methodReturn = result;
-        if (!helpers[helperName]) {console.log("helper named :", '"' + helperName + '"', "cannot be executed");}
-        if (helpers[helperName]) {methodReturn = helpers[helperName].apply(null, arrayParams);}
+        if (!helpers[helperName]) {
+            console.log("helper named :", '"' + helperName + '"', "cannot be executed");
+        } else {
+            var arrayParams  = createParams(helperParams);
+            methodReturn = helpers[helperName].apply(null, arrayParams);
+        }
+
 
         return methodReturn;
     }
@@ -176,9 +176,18 @@ module.exports = function(opts) {
     function createParams(paramsString) {
         var fullParams = [];
 
+        paramsString = parseParams(paramsString);
         paramsString = paramsString.replace(/ /g, '');
         paramsString.split(',').forEach(function(value, index) {
             value = getParam(value);
+            if (typeof value === "string") {
+                if (value.indexOf('{') == 0) {
+                    value = JSON.parse(value);
+                } else if (value.indexOf('[') == 0) {
+                    value = JSON.parse(value);
+                }
+            }
+
             fullParams.push(value);
         });
 
@@ -186,8 +195,27 @@ module.exports = function(opts) {
     }
 
     function getParam(string) {
-        if (string.indexOf('#') == 0) {
-            string = executeHelper(string);
+
+        if (typeof string === "string") {
+            if (string.match(findArrayReplaced)) {
+                string = string.replace(findArrayReplaced, function(match, result) {
+                    result = arrays[result];
+                    result = getParam(result);
+                    return result;
+                });
+            } else if (string.match(findObjectReplaced)) {
+                string = string.replace(findObjectReplaced, function(match, result) {
+                    result = JSON.stringify(objects[result]);
+                    result = getParam(result);
+                    return result;
+                });
+            } else if (string.match(findHelpersInlineReplaced)) {
+                string = string.replace(findHelpersInlineReplaced, function(match, result) {
+                    result = executeHelper(helpersInline[result]);
+                    result = getParam(result);
+                    return result;
+                });
+            }
         }
 
         return string;
@@ -199,17 +227,147 @@ module.exports = function(opts) {
         return merge(JSON.parse(templateText), JSON.parse(data));
     }
 
+    var objects                   = {};
+    var objectsIndex              = 1;
+    var findParamsObject          = /({[^{}]*})/g;
+    var findObjectReplaced        = /"?(\$\.O[0-9]*)"?/g;
+
+    var arrays                    = {};
+    var arraysIndex               = 1;
+    var findParamsArray           = /(\[[^\[\]]*\])/g;
+    var findArrayReplaced         = /"?(\$\.A[0-9]*)"?/g;
+
+    var helpersInline             = {};
+    var helpersInlineIndex        = 1;
+    var findHelpersInline         = /"?#([a-z\u00C0-\u017F_0-9]*\([^"()]*\))"?/gi;
+    var findHelpersInlineReplaced = /"?(\$\.H[0-9]*)"?/g;
+
+    function parseParams(string) {
+        string = tryToGetArrays(string);
+        string = tryToGetObjects(string);
+        string = tryToGetHelpers(string);
+        return string;
+    }
+
+
+    function tryToGetArrays(fileText) {
+        if (fileText.match(findParamsArray)) {
+            fileText = fetchArray(fileText);
+            fileText = tryToGetArrays(fileText);
+        }
+
+        return fileText;
+    }
+
+    function tryToGetObjects(fileText) {
+        if (fileText.match(findParamsObject)) {
+            fileText = fetchObject(fileText);
+            fileText = tryToGetObjects(fileText);
+        }
+
+        return fileText;
+    }
+
+    function tryToGetHelpers(fileText) {
+        if (fileText.match(findHelpersInline)) {
+            fileText = fetchHelperInline(fileText);
+            fileText = tryToGetHelpers(fileText);
+        }
+
+        return fileText;
+    }
+
+    function fetchArray(string) {
+        string = string.replace(findParamsArray, function (match, result) {
+            result = result.slice(1,-1);
+            result = result.replace(/[ ]*,[ ]*/g, ',');
+
+            if (result.match(findParamsArray)) {
+                result = fetchArray(result);
+            }
+
+            if (result.match(findParamsObject)) {
+                result = fetchObject(result);
+            }
+
+            if (result.match(findHelpersInline)) {
+                result = fetchHelperInline(result);
+            }
+
+            var stringObject = "$.A" + arraysIndex;
+            result = fakeArrayToRealArray(result);
+            arrays[stringObject] = result;
+            arraysIndex++;
+
+            return stringObject;
+        });
+        return string;
+    }
+
+    function fetchObject(string) {
+        string = string.replace(findParamsObject, function (match, result) {
+            result = result.slice(1,-1);
+            result = result.replace(/[ ]*,[ ]*/g, ',');
+            result = result.replace(/[ ]*:[ ]*/g, ':');
+
+            if (result.match(findParamsArray)) {
+                result = fetchArray(result);
+            }
+
+            if (result.match(findParamsObject)) {
+                result = fetchObject(result);
+            }
+
+            if (result.match(findHelpersInline)) {
+                result = fetchHelperInline(result);
+            }
+
+            var stringObject = "$.O" + objectsIndex;
+            result = fakeObjectToRealObject(result);
+            objects[stringObject] = result;
+            objectsIndex++;
+
+            return stringObject;
+        });
+        return string;
+    }
+
+    function fetchHelperInline(string) {
+        string = string.replace(findHelpersInline, function (match, result) {
+            var helperName = result.match(findHelperName)[0];
+
+            if (result.match(findParamsArray)) {
+                result = fetchArray(result);
+            }
+
+            if (result.match(findParamsObject)) {
+                result = fetchObject(result);
+            }
+
+            if (result.match(findHelpersInline)) {
+                result = fetchHelperInline(result);
+            }
+
+            var stringObject = "$.H" + helpersInlineIndex;
+            helpersInline[stringObject] = "#" + result;
+            helpersInlineIndex++;
+
+            return stringObject;
+        });
+        return string;
+    }
+
     function fakeArrayToRealArray(data) {
         var final = [];
 
         if (data != "") {
             data = data.split(",");
             data.forEach(function(value, index) {
-                final.push(value);
+                final.push(formatString(value));
             });
         }
 
-        return final;
+        return JSON.stringify(final);
     }
 
     function fakeObjectToRealObject(data) {
@@ -219,7 +377,7 @@ module.exports = function(opts) {
             data = data.split(",");
             data.forEach(function(value, index) {
                 value = value.split(":");
-                value[1] = formatString(String(value[1]));
+                value[1] = formatString(value[1]);
                 final[value[0]] = value[1];
             });
         }
