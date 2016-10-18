@@ -158,17 +158,18 @@ module.exports = function(opts) {
     }
 
     function executeHelper(result) {
-        var helperName   = result.match(findHelperName)[0].slice(1);
-        var helperParams = result.match(findHelperParameters)[0].slice(1, -1);
-
         var methodReturn = result;
-        if (!helpers[helperName]) {
-            console.log("helper named :", '"' + helperName + '"', "cannot be executed");
-        } else {
-            var arrayParams  = createParams(helperParams);
-            methodReturn = helpers[helperName].apply(null, arrayParams);
-        }
 
+        if (result.indexOf('(') != -1) {
+            var helperName   = result.match(findHelperName)[0].slice(1);
+            var helperParams = result.match(findHelperParameters)[0].slice(1, -1);
+            if (!helpers[helperName]) {
+                console.log("helper named :", '"' + helperName + '"', "cannot be executed");
+            } else {
+                var arrayParams  = createParams(helperParams);
+                methodReturn = helpers[helperName].apply(null, arrayParams);
+            }
+        }
 
         return methodReturn;
     }
